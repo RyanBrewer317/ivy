@@ -3,9 +3,14 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import gleam/io
-import header.{pretty_parsed_stmt, Function, Call, Var, Lit, Global, String}
+import gleam/list
+import header.{pretty_parsed_stmt}
+import parser
 
 pub fn main() {
   io.println("Soon to be the Ivy Programming Language!")
-  io.println(pretty_parsed_stmt(Function(Nil, "main", [], [Call(Nil, Var(Nil, Global("println")), [Lit(Nil, String("Hello World"))])])))
+  let assert Ok(prog) = parser.go("fn main() {println(\"hello world\")}")
+  list.each(prog, fn(stmt) {
+    io.println(pretty_parsed_stmt(stmt))
+  })
 }

@@ -16,14 +16,18 @@ pub type Stmt(t, name) {
     TypeDef(String, Type(name))
 }
 
-pub fn pretty_parsed_stmt(stmt: Stmt(Nil, String)) -> String {
+pub type ParsedStmt = Stmt(Nil, String)
+
+pub fn pretty_parsed_stmt(stmt: ParsedStmt) -> String {
     case stmt {
         Function(_, name, params, body) -> "fn " <> name <> "(" <> string.join(list.map(params, pretty_parsed_param), ", ") <> ") {\n  " <> string.join(list.map(body, pretty_parsed_expr), "\n  ") <> "\n}"
         TypeDef(name, t) -> "type " <> name <> " = " <> pretty_parsed_type(t)
     }
 }
 
-pub fn pretty_processed_stmt(stmt: Stmt(Type(Int), Int)) -> String {
+pub type ProcessedStmt = Stmt(Type(Int), Int)
+
+pub fn pretty_processed_stmt(stmt: ProcessedStmt) -> String {
     case stmt {
         Function(_, name, params, body) -> "fn " <> name <> string.join(list.map(params, pretty_processed_param), ", ") <> " {" <> string.join(list.map(body, pretty_processed_expr), "\n") <> "}"
         TypeDef(name, t) -> "type " <> name <> " = " <> pretty_processed_type(t)
@@ -34,13 +38,17 @@ pub type Param(name) {
     Param(t: Type(name), name: name)
 }
 
-pub fn pretty_parsed_param(param: Param(String)) -> String {
+pub type ParsedParam = Param(String)
+
+pub fn pretty_parsed_param(param: ParsedParam) -> String {
     case param {
         Param(t, name) -> name <> " " <> pretty_parsed_type(t)
     }
 }
 
-pub fn pretty_processed_param(param: Param(Int)) -> String {
+pub type ProcessedParam = Param(Int)
+
+pub fn pretty_processed_param(param: ProcessedParam) -> String {
     case param {
         Param(t, name) -> "x" <> int.to_string(name) <> " " <> pretty_processed_type(t)
     }
@@ -52,9 +60,12 @@ pub type Expr(t, name) {
     Call(t: t, Expr(t, name), List(Expr(t, name)))
     BinOp(t: t, BinOp, Expr(t, name), Expr(t, name))
     Keyword(t: t, String)
+    // TODO: dot syntax, case statement
 }
 
-pub fn pretty_parsed_expr(expr: Expr(Nil, String)) -> String {
+pub type ParsedExpr = Expr(Nil, String)
+
+pub fn pretty_parsed_expr(expr: ParsedExpr) -> String {
     case expr {
         Var(_, ident) -> pretty_parsed_ident(ident)
         Lit(_, lit) -> pretty_lit(lit)
@@ -64,7 +75,9 @@ pub fn pretty_parsed_expr(expr: Expr(Nil, String)) -> String {
     }
 }
 
-pub fn pretty_processed_expr(expr: Expr(Type(Int), Int)) -> String {
+pub type ProcessedExpr = Expr(Type(Int), Int)
+
+pub fn pretty_processed_expr(expr: ProcessedExpr) -> String {
     case expr {
         Var(_, ident) -> pretty_processed_ident(ident)
         Lit(_, lit) -> pretty_lit(lit)
@@ -79,14 +92,18 @@ pub type Ident(id) {
     Local(id)
 }
 
-pub fn pretty_parsed_ident(ident: Ident(String)) {
+pub type ParsedIdent = Ident(String)
+
+pub fn pretty_parsed_ident(ident: ParsedIdent) {
     case ident {
         Global(name) -> name
         Local(name) -> name
     }
 }
 
-pub fn pretty_processed_ident(ident: Ident(Int)) -> String {
+pub type ProcessedIdent = Ident(Int)
+
+pub fn pretty_processed_ident(ident: ProcessedIdent) -> String {
     case ident {
         Global(name) -> name
         Local(name) -> "x" <> int.to_string(name)
@@ -169,14 +186,18 @@ pub type Type(name) {
     // Interface(List(Param(name)))
 }
 
-pub fn pretty_parsed_type(t: Type(String)) -> String {
+pub type ParsedType = Type(String)
+
+pub fn pretty_parsed_type(t: ParsedType) -> String {
     case t {
         TypeVar(ident) -> pretty_parsed_ident(ident)
         BaseType(base_type) -> pretty_base_type(base_type)
     }
 }
 
-pub fn pretty_processed_type(t: Type(Int)) -> String {
+pub type ProcessedType = Type(Int)
+
+pub fn pretty_processed_type(t: ProcessedType) -> String {
     case t {
         TypeVar(ident) -> pretty_processed_ident(ident)
         BaseType(base_type) -> pretty_base_type(base_type)
