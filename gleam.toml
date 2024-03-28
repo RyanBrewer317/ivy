@@ -16,6 +16,8 @@ licences = ["MPL-2.0"]
 gleam_stdlib = "~> 0.34 or ~> 1.0"
 party = "~> 1.0"
 snag = "~> 0.3"
+simplifile = "~> 1.6"
+shellout = "~> 1.6"
 
 [dev-dependencies]
 gleeunit = "~> 1.0"

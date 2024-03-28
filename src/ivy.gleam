@@ -3,29 +3,37 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import gleam/io
-import gleam/list
 import gleam/string
-import header.{type ProcessedStmt, pretty_processed_stmt}
 import snag.{type Result}
 import gleam/result
 import parser
 import typechecker
+import codegen
+import simplifile
+import shellout
 
-fn go(code: String) -> Result(List(ProcessedStmt)) {
-  io.println(code)
-  io.println("")
-  use parsed <- result.try(
-    result.map_error(parser.go(code), fn(err) { snag.new(string.inspect(err)) }),
-  )
+fn go(code: String) -> Result(String) {
+  let handle_parse_error = fn(err) { snag.new(string.inspect(err)) }
+  use parsed <- result.try(result.map_error(parser.go(code), handle_parse_error))
   use typed <- result.try(typechecker.go(parsed))
-  Ok(typed)
+  let js = codegen.go(typed)
+  Ok(js)
 }
 
 pub fn main() {
-  io.println("Soon to be the Ivy Programming Language!")
-  case go("fn foo(s string, i int) string { i;s } fn main() {foo(\"a\", 3); println(foo(\"hello world\", 7))}") {
-    Ok(prog) -> {
-      list.each(prog, fn(stmt) { io.println(pretty_processed_stmt(stmt)) })
+  case
+    go(
+      "fn foo(s string, i int) string { i;s } fn main() {foo(\"a\", 3); println(foo(\"hello world\", 7))}",
+    )
+  {
+    Ok(js) -> {
+      let assert Ok(_) = simplifile.write(js, to: "out.js")
+      let assert Ok(_res) =
+        shellout.command("node", ["out.js"], in: ".", opt: [
+          shellout.LetBeStderr,
+          shellout.LetBeStdout,
+        ])
+        Nil
     }
     Error(err) -> io.println(snag.pretty_print(err))
   }
