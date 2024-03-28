@@ -2,7 +2,7 @@
 
 A scripting language written in Gleam! 
 
-Currently a tiny fragment of it can be parsed and typechecked:
+Currently a tiny fragment of it works:
 
 ```
 fn foo(s string, i int) string {
