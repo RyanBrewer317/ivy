@@ -28,4 +28,4 @@ To accomplish this, it performs a borrow-checking analysis like that of Mojo, bo
 
 To make this more palateable, Ivy's type system allows marking owned values as junk, which aren't readable, and can be passed to a function as the place to allocate its return value (think NRVO). This allows avoiding copies in some cases. Therefore, instead of being truly immutable, Ivy can be seen as a "mutation-is-initialization"-based language: if you can prove that a value is garbage, then you can "initialize" it again with a new value of the same type, cancelling out a free and a malloc.
 
-Ivy is named after my brilliant, beautiful wife :)
+Ivy is named after my brilliant, beautiful philosopher wife :)
