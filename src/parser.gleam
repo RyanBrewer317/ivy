@@ -4,19 +4,52 @@
 
 import gleam/int
 import gleam/float
+import gleam/dict.{type Dict}
 import header.{
-  type BinOp, type ParsedExpr, type ParsedParam, type ParsedStmt,
-  type ParsedType, BinOp, Call, Float, Function, Int, Lit, Local, Minus, Param,
-  Plus, String, TypeVar, Var,
+  type ParsedExpr, type ParsedParam, type ParsedStmt, type ParsedType, BaseType,
+  BoolType, Builtin, Call, Float, FloatType, Function, Global, Int, IntType, Lit,
+  Local, Param, String, StringType, Var, VoidType,
 }
 import party.{
-  type ParseError, type Parser, alphanum, char, choice, digits, do, either, lazy,
-  lowercase_letter, many1, many_concat, not, perhaps, return, satisfy, sep, seq,
+  type ParseError, type Parser, alphanum, char, choice, digits, do, either, end,
+  lazy, lowercase_letter, many, many_concat, not, perhaps, return, satisfy, seq,
   string, whitespace, whitespace1,
 }
 
 pub fn go(input: String) -> Result(List(ParsedStmt), ParseError(Nil)) {
-  party.go(many1(stmt()), input)
+  party.go(parse(), input)
+}
+
+fn parse() -> Parser(List(ParsedStmt), Nil) {
+  use stmts <- do(parse_helper(dict.new()))
+  case stmts {
+    [] -> {
+      use _ <- do(stmt(dict.new()))
+      panic as "this was supposed to fail but here we are"
+    }
+    _ -> {
+      use res <- do(perhaps(end()))
+      case res {
+        Ok(_) -> return(stmts)
+        Error(Nil) -> {
+          use _ <- do(stmt(dict.new()))
+          panic as "this was supposed to fail but here we are"
+        }
+      }
+      return(stmts)
+    }
+  }
+}
+
+fn parse_helper(defns: Dict(String, Bool)) -> Parser(List(ParsedStmt), Nil) {
+  use res <- do(perhaps(stmt(defns)))
+  case res {
+    Ok(s) -> {
+      use rest <- do(parse_helper(dict.insert(defns, s.name, True)))
+      return([s, ..rest])
+    }
+    Error(Nil) -> return([])
+  }
 }
 
 fn param() -> Parser(ParsedParam, Nil) {
@@ -26,30 +59,51 @@ fn param() -> Parser(ParsedParam, Nil) {
   return(Param(t, name))
 }
 
-fn function() -> Parser(ParsedStmt, Nil) {
+fn function(defns: Dict(String, Bool)) -> Parser(ParsedStmt, Nil) {
   use _ <- do(string("fn"))
   use _ <- do(whitespace1())
   use name <- do(ident_string())
   use _ <- do(whitespace())
   use _ <- do(char("("))
+  use _ <- do(whitespace())
   use params <- do(sep(
     param(),
     by: seq(whitespace(), seq(char(","), whitespace())),
   ))
+  use _ <- do(whitespace())
   use _ <- do(char(")"))
   use _ <- do(whitespace())
+  use res <- do(perhaps(typ()))
+  let rett = case res {
+    Ok(t) -> t
+    Error(Nil) -> BaseType(VoidType)
+  }
   use _ <- do(char("{"))
-  use body <- do(sep(expr(), by: char("\n")))
+  use _ <- do(whitespace())
+  use body <- do(sep(expr(defns), by: char(";")))
   use _ <- do(char("}"))
-  return(Function(Nil, name, params, body))
+  return(Function(name, params, rett, body))
 }
 
-pub fn stmt() -> Parser(ParsedStmt, Nil) {
+fn sep1(parser: Parser(a, e), by s: Parser(b, e)) -> Parser(List(a), e) {
+  use first <- do(parser)
+  use rest <- do(many(seq(s, parser)))
+  return([first, ..rest])
+}
+
+fn sep(parser: Parser(a, e), by s: Parser(b, e)) -> Parser(List(a), e) {
+  use res <- do(perhaps(sep1(parser, by: s)))
+  case res {
+    Ok(l) -> return(l)
+    Error(Nil) -> return([])
+  }
+}
+
+pub fn stmt(defns: Dict(String, Bool)) -> Parser(ParsedStmt, Nil) {
   use _ <- do(whitespace())
-  use f <- do(function())
+  use f <- do(function(defns))
   use _ <- do(whitespace())
   return(f)
-  // TODO: type definitions
 }
 
 fn ident_string() -> Parser(String, Nil) {
@@ -58,9 +112,27 @@ fn ident_string() -> Parser(String, Nil) {
   return(first <> rest)
 }
 
-fn var() -> Parser(ParsedExpr, Nil) {
+fn var(defns: Dict(String, Bool)) -> Parser(ParsedExpr, Nil) {
   use name <- do(ident_string())
-  return(Var(Nil, Local(name)))
+  use res <- do(perhaps(char("(")))
+  case res {
+    Ok(_) -> {
+      use args <- do(sep(lazy(fn() { expr(defns) }), by: char(",")))
+      use _ <- do(char(")"))
+      case dict.get(defns, name) {
+        Error(Nil) -> Builtin(Nil, name, args)
+        Ok(True) -> Call(Nil, Global(name), args)
+        Ok(False) -> Call(Nil, Local(name), args)
+      }
+      |> return
+    }
+    Error(Nil) ->
+      case dict.get(defns, name) {
+        Error(Nil) -> return(Var(Nil, Local(name)))
+        Ok(True) -> return(Var(Nil, Global(name)))
+        Ok(False) -> return(Var(Nil, Local(name)))
+      }
+  }
 }
 
 fn num_lit() -> Parser(ParsedExpr, Nil) {
@@ -77,7 +149,6 @@ fn num_lit() -> Parser(ParsedExpr, Nil) {
       return(Lit(Nil, Int(i)))
     }
   }
-  // TODO: scientific notation
 }
 
 fn string_lit() -> Parser(ParsedExpr, Nil) {
@@ -85,23 +156,7 @@ fn string_lit() -> Parser(ParsedExpr, Nil) {
   use s <- do(many_concat(satisfy(fn(c) { c != "\"" })))
   use _ <- do(char("\""))
   return(Lit(Nil, String(s)))
-  // TODO: escaping
 }
-
-fn bin_op() -> Parser(BinOp, Nil) {
-  choice([
-    party.map(string("+"), fn(_) { Plus }),
-    party.map(string("-"), fn(_) { Minus }),
-  ])
-}
-
-// fn parse_keyword() -> Parser(ParsedExpr, Nil) {
-//     use kw <- do(choice([
-//         "println",
-//     ] |> list.map(string)))
-//     use _ <- do(not(either(alphanum(), char("_"))))
-//     return(Keyword(Nil, kw))
-// }
 
 fn parenthetical(p: Parser(a, e)) -> Parser(a, e) {
   use _ <- do(char("("))
@@ -110,45 +165,44 @@ fn parenthetical(p: Parser(a, e)) -> Parser(a, e) {
   return(x)
 }
 
-pub fn expr() -> Parser(ParsedExpr, Nil) {
+pub fn expr(defns: Dict(String, Bool)) -> Parser(ParsedExpr, Nil) {
   use _ <- do(whitespace())
-  use first_part <- do(
-    choice([parenthetical(lazy(expr)), num_lit(), string_lit(), var()]),
+  use e <- do(
+    choice([
+      parenthetical(lazy(fn() { expr(defns) })),
+      num_lit(),
+      string_lit(),
+      var(defns),
+    ]),
   )
   use _ <- do(whitespace())
-  use res <- do(perhaps(char("(")))
-  use first_part <- do(case res {
-    Ok(_) -> {
-      use args <- do(sep(lazy(expr), by: char(",")))
-      use _ <- do(char(")"))
-      return(Call(Nil, first_part, args))
-    }
-    Error(Nil) -> return(first_part)
-  })
-  use res <- do(perhaps(bin_op()))
-  case res {
-    Ok(op) -> {
-      use second_part <- do(
-        choice([parenthetical(lazy(expr)), num_lit(), string_lit(), var()]),
-      )
-      return(BinOp(Nil, op, first_part, second_part))
-    }
-    Error(Nil) -> return(first_part)
-  }
-  // TODO: dot syntax, case statement
+  return(e)
 }
 
-// TODO: case statement
+fn keyword(s: String) -> Parser(String, Nil) {
+  use _ <- do(string(s))
+  use _ <- do(not(either(alphanum(), char("_"))))
+  return(s)
+}
 
-fn type_var() -> Parser(ParsedType, Nil) {
-  use name <- do(ident_string())
-  return(TypeVar(Local(name)))
+fn base_type() -> Parser(ParsedType, Nil) {
+  choice([
+    keyword("int")
+      |> party.map(fn(_) { BaseType(IntType) }),
+    keyword("float")
+      |> party.map(fn(_) { BaseType(FloatType) }),
+    keyword("bool")
+      |> party.map(fn(_) { BaseType(BoolType) }),
+    keyword("string")
+      |> party.map(fn(_) { BaseType(StringType) }),
+    keyword("void")
+      |> party.map(fn(_) { BaseType(VoidType) }),
+  ])
 }
 
 pub fn typ() -> Parser(ParsedType, Nil) {
   use _ <- do(whitespace())
-  use t <- do(type_var())
+  use t <- do(base_type())
   use _ <- do(whitespace())
   return(t)
-  // TODO: the other type constructs
 }
