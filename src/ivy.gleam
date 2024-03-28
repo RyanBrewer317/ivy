@@ -21,11 +21,9 @@ fn go(code: String) -> Result(String) {
 }
 
 pub fn main() {
-  case
-    go(
-      "fn foo(s string, i int) string { i;s } fn main() {foo(\"a\", 3); println(foo(\"hello world\", 7))}",
-    )
-  {
+  let assert [filename] = shellout.arguments()
+  let assert Ok(code) = simplifile.read(filename)
+  case go(code) {
     Ok(js) -> {
       let assert Ok(_) = simplifile.write(js, to: "out.js")
       let assert Ok(_res) =
@@ -33,7 +31,7 @@ pub fn main() {
           shellout.LetBeStderr,
           shellout.LetBeStdout,
         ])
-        Nil
+      Nil
     }
     Error(err) -> io.println(snag.pretty_print(err))
   }

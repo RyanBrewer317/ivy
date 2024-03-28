@@ -1,0 +1,9 @@
+fn foo(s string, i int) string {
+  i;
+  s
+}
+
+fn main() {
+  foo("a", 3);
+  println(foo("hello world", 7))
+}
