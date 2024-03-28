@@ -26,7 +26,7 @@ pub fn main() {
   case go(code) {
     Ok(js) -> {
       let assert Ok(_) = simplifile.write(js, to: "out.js")
-      let assert Ok(_res) =
+      let assert _ =
         shellout.command("node", ["out.js"], in: ".", opt: [
           shellout.LetBeStderr,
           shellout.LetBeStdout,

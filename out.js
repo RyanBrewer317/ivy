@@ -2,7 +2,7 @@
 
 function foo(x0, x1) {
   x1;
-  return x0;
+  return foo(x0, x1);
 }
 
 function main() {

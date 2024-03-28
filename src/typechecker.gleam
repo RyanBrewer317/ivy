@@ -7,7 +7,6 @@ import gleam/dict.{type Dict}
 import gleam/result
 import gleam/list
 import gleam/bool
-import gleam/io
 import header.{
   type ParsedExpr, type ParsedStmt, type ParsedType, type ProcessedExpr,
   type ProcessedIdent, type ProcessedStmt, type ProcessedType, BaseType, Bool,
@@ -68,10 +67,11 @@ fn stmt(s: ParsedStmt, i: Int, ctx: Context) -> Result(#(ProcessedStmt, Int)) {
       )
       let params = list.reverse(params_rev)
       let func_type = #(list.map(params, fn(p) { p.t }), typ(rett))
+      let ctx2 = dict.insert(ctx, name, FuncEntry(Global(name), func_type.0, func_type.1))
       use #(body_rev, i) <- result.try(
         list.try_fold(over: body, from: #([], i), with: fn(state, line) {
           let #(body_rev, i) = state
-          use #(line, i) <- result.try(expr(line, i, ctx))
+          use #(line, i) <- result.try(expr(line, i, ctx2))
           Ok(#([line, ..body_rev], i))
         }),
       )
@@ -119,7 +119,6 @@ fn expr(e: ParsedExpr, i: Int, ctx: Context) -> Result(#(ProcessedExpr, Int)) {
           return_type,
         )
         Error(Nil) -> {
-          io.debug(ctx)
           panic as {
             "undefined function `" <> get_parsed_ident_name(func) <> "`"
           }

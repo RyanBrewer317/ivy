@@ -5,6 +5,7 @@
 import gleam/int
 import gleam/float
 import gleam/dict.{type Dict}
+import gleam/list
 import header.{
   type ParsedExpr, type ParsedParam, type ParsedStmt, type ParsedType, BaseType,
   BoolType, Builtin, Call, Float, FloatType, Function, Global, Int, IntType, Lit,
@@ -80,7 +81,10 @@ fn function(defns: Dict(String, Bool)) -> Parser(ParsedStmt, Nil) {
   }
   use _ <- do(char("{"))
   use _ <- do(whitespace())
-  use body <- do(sep(expr(defns), by: char(";")))
+  let defns2 = list.fold(params, defns, fn(acc, p) {
+    dict.insert(acc, p.name, False)
+  })
+  use body <- do(sep(expr(dict.insert(defns2, name, True)), by: char(";")))
   use _ <- do(char("}"))
   return(Function(name, params, rett, body))
 }

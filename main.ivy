@@ -1,6 +1,6 @@
 fn foo(s string, i int) string {
   i;
-  s
+  foo(s, i)
 }
 
 fn main() {
