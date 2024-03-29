@@ -8,13 +8,14 @@ import gleam/dict.{type Dict}
 import gleam/list
 import header.{
   type ParsedExpr, type ParsedParam, type ParsedStmt, type ParsedType, BaseType,
-  BoolType, Builtin, Call, Float, FloatType, Function, Global, Int, IntType, Lit,
-  Local, Param, String, StringType, Var, VoidType,
+  BoolType, Builtin, Call, Constructor, CustomType, Float, FloatType, Function,
+  Global, Int, IntType, Lit, Local, Param, String, StringType, TypeDef, Var,
+  VoidType, Bool
 }
 import party.{
   type ParseError, type Parser, alphanum, char, choice, digits, do, either, end,
-  lazy, lowercase_letter, many, many_concat, not, perhaps, return, satisfy, seq,
-  string, whitespace, whitespace1,
+  lazy, lowercase_letter, many_concat, not, perhaps, return, satisfy, sep, seq,
+  string, uppercase_letter, whitespace, whitespace1,
 }
 
 pub fn go(input: String) -> Result(List(ParsedStmt), ParseError(Nil)) {
@@ -81,39 +82,63 @@ fn function(defns: Dict(String, Bool)) -> Parser(ParsedStmt, Nil) {
   }
   use _ <- do(char("{"))
   use _ <- do(whitespace())
-  let defns2 = list.fold(params, defns, fn(acc, p) {
-    dict.insert(acc, p.name, False)
-  })
+  let defns2 =
+    list.fold(params, defns, fn(acc, p) { dict.insert(acc, p.name, False) })
   use body <- do(sep(expr(dict.insert(defns2, name, True)), by: char(";")))
   use _ <- do(char("}"))
   return(Function(name, params, rett, body))
 }
 
-fn sep1(parser: Parser(a, e), by s: Parser(b, e)) -> Parser(List(a), e) {
-  use first <- do(parser)
-  use rest <- do(many(seq(s, parser)))
-  return([first, ..rest])
+fn ctor() -> Parser(#(String, List(ParsedType)), Nil) {
+  use _ <- do(whitespace())
+  use name <- do(constructor_string())
+  use _ <- do(whitespace())
+  use _ <- do(char("("))
+  use types <- do(sep(typ(), by: char(",")))
+  use _ <- do(char(")"))
+  use _ <- do(whitespace())
+  return(#(name, types))
 }
 
-fn sep(parser: Parser(a, e), by s: Parser(b, e)) -> Parser(List(a), e) {
-  use res <- do(perhaps(sep1(parser, by: s)))
-  case res {
-    Ok(l) -> return(l)
-    Error(Nil) -> return([])
-  }
+fn typedef() -> Parser(ParsedStmt, Nil) {
+  use _ <- do(string("def"))
+  use _ <- do(whitespace1())
+  use name <- do(constructor_string())
+  use _ <- do(whitespace())
+  use _ <- do(char("{"))
+  use variants <- do(sep(ctor(), by: char(",")))
+  use _ <- do(char("}"))
+  return(TypeDef(name, variants))
 }
 
 pub fn stmt(defns: Dict(String, Bool)) -> Parser(ParsedStmt, Nil) {
   use _ <- do(whitespace())
-  use f <- do(function(defns))
+  use s <- do(choice([function(defns), typedef()]))
   use _ <- do(whitespace())
-  return(f)
+  return(s)
 }
 
 fn ident_string() -> Parser(String, Nil) {
   use first <- do(lowercase_letter())
   use rest <- do(many_concat(either(alphanum(), char("_"))))
   return(first <> rest)
+}
+
+fn constructor_string() -> Parser(String, Nil) {
+  use first <- do(uppercase_letter())
+  use rest <- do(many_concat(alphanum()))
+  return(first <> rest)
+}
+
+fn bool() -> Parser(ParsedExpr, Nil) {
+  choice([keyword("true"), keyword("false")])
+  |> party.map(fn(s) {
+    case s {
+      "true" -> Lit(Nil, Bool(True))
+      "false" -> Lit(Nil, Bool(False))
+      _ -> panic 
+    }
+  })
 }
 
 fn var(defns: Dict(String, Bool)) -> Parser(ParsedExpr, Nil) {
@@ -137,6 +162,15 @@ fn var(defns: Dict(String, Bool)) -> Parser(ParsedExpr, Nil) {
         Ok(False) -> return(Var(Nil, Local(name)))
       }
   }
+}
+
+fn constructor(defns: Dict(String, Bool)) -> Parser(ParsedExpr, Nil) {
+  use name <- do(constructor_string())
+  use _ <- do(whitespace())
+  use _ <- do(char("("))
+  use args <- do(sep(lazy(fn() { expr(defns) }), by: char(",")))
+  use _ <- do(char(")"))
+  return(Constructor(Nil, name, args))
 }
 
 fn num_lit() -> Parser(ParsedExpr, Nil) {
@@ -176,7 +210,9 @@ pub fn expr(defns: Dict(String, Bool)) -> Parser(ParsedExpr, Nil) {
       parenthetical(lazy(fn() { expr(defns) })),
       num_lit(),
       string_lit(),
+      bool(),
       var(defns),
+      constructor(defns),
     ]),
   )
   use _ <- do(whitespace())
@@ -204,9 +240,14 @@ fn base_type() -> Parser(ParsedType, Nil) {
   ])
 }
 
+fn custom_type() -> Parser(ParsedType, Nil) {
+  use name <- do(constructor_string())
+  return(CustomType(name))
+}
+
 pub fn typ() -> Parser(ParsedType, Nil) {
   use _ <- do(whitespace())
-  use t <- do(base_type())
+  use t <- do(choice([base_type(), custom_type()]))
   use _ <- do(whitespace())
   return(t)
 }

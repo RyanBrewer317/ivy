@@ -1,9 +1,14 @@
-fn foo(s string, i int) string {
-  i;
-  foo(s, i)
+def Nat {
+  Zero(),
+  Successor(bool)
+}
+
+fn foo(s string, n Nat) string {
+  n;
+  foo(s, n)
 }
 
 fn main() {
-  foo("a", 3);
-  println(foo("hello world", 7))
+  foo("a", Zero());
+  println(foo("hello world", Successor(false)))
 }

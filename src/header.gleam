@@ -9,6 +9,7 @@ import gleam/list
 
 pub type Stmt(t, name) {
   Function(name: String, List(Param(name)), Type(name), List(Expr(t, name)))
+  TypeDef(name: String, List(#(String, List(Type(name)))))
 }
 
 pub type ParsedStmt =
@@ -25,6 +26,21 @@ pub fn pretty_parsed_stmt(stmt: ParsedStmt) -> String {
       <> pretty_parsed_type(rett)
       <> " {\n  "
       <> string.join(list.map(body, pretty_parsed_expr), ";\n  ")
+      <> "\n}"
+    TypeDef(name, variants) ->
+      "def "
+      <> name
+      <> " {\n  "
+      <> string.join(
+        list.map(variants, fn(pair) {
+          let #(name, types) = pair
+          name
+          <> "("
+          <> string.join(list.map(types, pretty_parsed_type), ", ")
+          <> ")"
+        }),
+        "\n  ",
+      )
       <> "\n}"
   }
 }
@@ -43,6 +59,21 @@ pub fn pretty_processed_stmt(stmt: ProcessedStmt) -> String {
       <> pretty_processed_type(rett)
       <> " {\n  "
       <> string.join(list.map(body, pretty_processed_expr), ";\n  ")
+      <> "\n}"
+    TypeDef(name, variants) ->
+      "def "
+      <> name
+      <> " {\n  "
+      <> string.join(
+        list.map(variants, fn(pair) {
+          let #(name, types) = pair
+          name
+          <> "("
+          <> string.join(list.map(types, pretty_processed_type), ", ")
+          <> ")"
+        }),
+        "\n  ",
+      )
       <> "\n}"
   }
 }
@@ -75,6 +106,7 @@ pub type Expr(t, name) {
   Lit(t: t, Lit)
   Call(t: t, Ident(name), List(Expr(t, name)))
   Builtin(t: t, String, List(Expr(t, name)))
+  Constructor(t: t, String, List(Expr(t, name)))
 }
 
 pub type ParsedExpr =
@@ -90,6 +122,11 @@ pub fn pretty_parsed_expr(expr: ParsedExpr) -> String {
       <> string.join(list.map(args, pretty_parsed_expr), ", ")
       <> ")"
     Builtin(_, name, args) ->
+      name
+      <> "("
+      <> string.join(list.map(args, pretty_parsed_expr), ", ")
+      <> ")"
+    Constructor(_, name, args) ->
       name
       <> "("
       <> string.join(list.map(args, pretty_parsed_expr), ", ")
@@ -110,6 +147,11 @@ pub fn pretty_processed_expr(expr: ProcessedExpr) -> String {
       <> string.join(list.map(args, pretty_processed_expr), ", ")
       <> ")"
     Builtin(_, name, args) ->
+      name
+      <> "("
+      <> string.join(list.map(args, pretty_processed_expr), ", ")
+      <> ")"
+    Constructor(_, name, args) ->
       name
       <> "("
       <> string.join(list.map(args, pretty_processed_expr), ", ")
@@ -183,6 +225,7 @@ pub fn pretty_base_type(t: BaseType) -> String {
 
 pub type Type(name) {
   BaseType(BaseType)
+  CustomType(String)
 }
 
 pub type ParsedType =
@@ -192,6 +235,7 @@ pub fn pretty_parsed_type(t: ParsedType) -> String {
   case t {
     // TypeVar(ident) -> pretty_parsed_ident(ident)
     BaseType(base_type) -> pretty_base_type(base_type)
+    CustomType(name) -> name
   }
 }
 
@@ -201,5 +245,6 @@ pub type ProcessedType =
 pub fn pretty_processed_type(t: ProcessedType) -> String {
   case t {
     BaseType(base_type) -> pretty_base_type(base_type)
+    CustomType(name) -> name
   }
 }

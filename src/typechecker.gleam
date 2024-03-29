@@ -10,9 +10,9 @@ import gleam/bool
 import header.{
   type ParsedExpr, type ParsedStmt, type ParsedType, type ProcessedExpr,
   type ProcessedIdent, type ProcessedStmt, type ProcessedType, BaseType, Bool,
-  BoolType, Builtin, Call, Float, FloatType, Function, Global, Int, IntType, Lit,
-  Local, Param, String, StringType, Var, VoidType, get_parsed_ident_name,
-  pretty_processed_type,
+  BoolType, Builtin, Call, Constructor, CustomType, Float, FloatType, Function,
+  Global, Int, IntType, Lit, Local, Param, String, StringType, TypeDef, Var,
+  VoidType, get_parsed_ident_name, pretty_processed_type,
 }
 
 type ContextEntry {
@@ -22,6 +22,11 @@ type ContextEntry {
     return_type: ProcessedType,
   )
   VarEntry(ident: ProcessedIdent, var_type: ProcessedType)
+  TypeEntry(
+    ident: ProcessedIdent,
+    type_variants: List(#(String, List(ProcessedType))),
+  )
+  ConstructorEntry(ident: ProcessedIdent, t: String, types: List(ProcessedType))
 }
 
 type Context =
@@ -42,6 +47,17 @@ pub fn go(prog: List(ParsedStmt)) -> Result(List(ProcessedStmt)) {
             FuncEntry(Global(name), list.map(params, fn(p) { p.t }), rett),
           ),
         ))
+      TypeDef(name, variants) -> {
+        let ctx2 = list.fold(variants, ctx, fn(acc, variant) {
+          let #(ctor, types) = variant
+          dict.insert(acc, ctor, ConstructorEntry(Global(ctor), name, types))
+        })
+        Ok(#(
+          [res, ..stmts],
+          i,
+          dict.insert(ctx2, name, TypeEntry(Global(name), variants)),
+        ))
+      }
     }
   })
   |> result.map(fn(res) {
@@ -67,7 +83,12 @@ fn stmt(s: ParsedStmt, i: Int, ctx: Context) -> Result(#(ProcessedStmt, Int)) {
       )
       let params = list.reverse(params_rev)
       let func_type = #(list.map(params, fn(p) { p.t }), typ(rett))
-      let ctx2 = dict.insert(ctx, name, FuncEntry(Global(name), func_type.0, func_type.1))
+      let ctx2 =
+        dict.insert(
+          ctx,
+          name,
+          FuncEntry(Global(name), func_type.0, func_type.1),
+        )
       use #(body_rev, i) <- result.try(
         list.try_fold(over: body, from: #([], i), with: fn(state, line) {
           let #(body_rev, i) = state
@@ -91,6 +112,14 @@ fn stmt(s: ParsedStmt, i: Int, ctx: Context) -> Result(#(ProcessedStmt, Int)) {
       let body = list.reverse(body_rev)
       Ok(#(Function(name, params, func_type.1, body), i))
     }
+    TypeDef(name, variants) -> {
+      let variants =
+        list.map(variants, fn(pair) {
+          let #(name, types) = pair
+          #(name, list.map(types, fn(t) { typ(t) }))
+        })
+      Ok(#(TypeDef(name, variants), i))
+    }
   }
 }
 
@@ -100,6 +129,8 @@ fn expr(e: ParsedExpr, i: Int, ctx: Context) -> Result(#(ProcessedExpr, Int)) {
       case dict.get(ctx, name) {
         Ok(VarEntry(ident, t)) -> Ok(#(Var(t, ident), i))
         Ok(FuncEntry(_, _, _)) -> panic as "variable refers to function name"
+        Ok(TypeEntry(_, _)) -> panic as "variable refers to type name"
+        Ok(ConstructorEntry(_, _, _)) -> panic as "variable refers to constructor"
         Error(Nil) -> snag.error("undefined variable `" <> name <> "`")
       }
     Var(Nil, Global(_name)) -> panic as "parser produced a global var"
@@ -118,6 +149,10 @@ fn expr(e: ParsedExpr, i: Int, ctx: Context) -> Result(#(ProcessedExpr, Int)) {
           param_types,
           return_type,
         )
+        Ok(TypeEntry(_, _)) ->
+          panic as "function name refers to a type, not a function"
+        Ok(ConstructorEntry(_, _, _)) ->
+          panic as "function name refers to a constructor, not a function"
         Error(Nil) -> {
           panic as {
             "undefined function `" <> get_parsed_ident_name(func) <> "`"
@@ -181,11 +216,52 @@ fn expr(e: ParsedExpr, i: Int, ctx: Context) -> Result(#(ProcessedExpr, Int)) {
         _ -> snag.error("undefined function " <> name)
       }
     }
+    Constructor(Nil, name, args) -> {
+      use #(args_rev, i) <- result.try(
+        list.try_fold(over: args, from: #([], i), with: fn(state, arg) {
+          let #(args_rev, i) = state
+          use #(arg, i) <- result.try(expr(arg, i, ctx))
+          Ok(#([arg, ..args_rev], i))
+        }),
+      )
+      let args = list.reverse(args_rev)
+      case dict.get(ctx, name) {
+        Ok(ConstructorEntry(_, t_name, types)) -> {
+          use <- bool.guard(
+            when: list.length(types) != list.length(args),
+            return: snag.error("argument count mismatch in constructor call"),
+          )
+          use Nil <- result.try(
+            list.try_fold(
+              over: list.zip(types, args),
+              from: Nil,
+              with: fn(_, pair) {
+                let #(param_type, arg) = pair
+                use <- bool.guard(
+                  when: param_type != arg.t,
+                  return: snag.error(
+                    "type mismatch in constructor call: expected "
+                    <> pretty_processed_type(param_type)
+                    <> " but got "
+                    <> pretty_processed_type(arg.t),
+                  ),
+                )
+                Ok(Nil)
+              },
+            ),
+          )
+          Ok(#(Constructor(CustomType(t_name), name, args), i))
+        }
+        Ok(_) -> panic as "constructor name doesn't refer to a constructor"
+        Error(Nil) -> snag.error("undefined constructor `" <> name <> "`")
+      }
+    }
   }
 }
 
 fn typ(t: ParsedType) -> ProcessedType {
   case t {
     BaseType(ty) -> BaseType(ty)
+    CustomType(name) -> CustomType(name)
   }
 }

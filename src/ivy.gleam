@@ -12,7 +12,16 @@ import codegen
 import simplifile
 import shellout
 
-fn go(code: String) -> Result(String) {
+fn go() -> Result(String) {
+  use filename <- result.try(case shellout.arguments() {
+    [filename] -> Ok(filename)
+    _ -> snag.error("no ivy program filename provided")
+  })
+  use code <- result.try(
+    result.map_error(simplifile.read(filename), fn(_) {
+      snag.new("failed to read " <> filename)
+    }),
+  )
   let handle_parse_error = fn(err) { snag.new(string.inspect(err)) }
   use parsed <- result.try(result.map_error(parser.go(code), handle_parse_error))
   use typed <- result.try(typechecker.go(parsed))
@@ -21,9 +30,7 @@ fn go(code: String) -> Result(String) {
 }
 
 pub fn main() {
-  let assert [filename] = shellout.arguments()
-  let assert Ok(code) = simplifile.read(filename)
-  case go(code) {
+  case go() {
     Ok(js) -> {
       let assert Ok(_) = simplifile.write(js, to: "out.js")
       let assert _ =

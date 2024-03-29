@@ -7,8 +7,9 @@ import gleam/list
 import gleam/int
 import gleam/float
 import header.{
-  type ProcessedExpr, type ProcessedParam, type ProcessedStmt, Bool, Builtin,
-  Call, Float, Function, Global, Int, Lit, Local, String, Var,
+  type ProcessedExpr, type ProcessedParam, type ProcessedStmt,
+  type ProcessedType, BaseType, Bool, Builtin, Call, Constructor, CustomType,
+  Float, Function, Global, Int, Lit, Local, String, TypeDef, Var,
 }
 
 pub fn go(prog: List(ProcessedStmt)) -> String {
@@ -30,6 +31,37 @@ fn stmt(s: ProcessedStmt) -> String {
       <> ";\n  return "
       <> expr(last_line)
       <> ";\n}"
+    }
+    TypeDef(name, variants) -> {
+      "class "
+      <> name
+      <> " {"
+      <> "\n  "
+      <> string.join(
+        list.index_map(variants, fn(pair, i) {
+          let #(name, types) = pair
+          let #(args_rev, _) =
+            list.fold(over: types, from: #([], 0), with: fn(acc, _) {
+              let #(args_rev, j) = acc
+              #(["x" <> int.to_string(j), ..args_rev], j + 1)
+            })
+          let args = list.reverse(args_rev)
+          name
+          <> "("
+          <> string.join(args, ", ")
+          <> ") {\n    "
+          <> "this.tag = "
+          <> int.to_string(i)
+          <> ";\n    "
+          <> string.join(
+            list.map(args, fn(x) { "this." <> x <> " = " <> x }),
+            ";\n    ",
+          )
+          <> ";\n    return this;\n  }"
+        }),
+        "\n  ",
+      )
+      <> "\n}\n"
     }
   }
 }
@@ -56,5 +88,20 @@ fn expr(e: ProcessedExpr) -> String {
           "console.log(" <> string.join(list.map(args, expr), ", ") <> ")"
         _ -> panic as { "unimplemented builtin " <> name }
       }
+    Constructor(t, name, args) ->
+      "new "
+      <> typ(t)
+      <> "()."
+      <> name
+      <> "("
+      <> string.join(list.map(args, expr), ", ")
+      <> ")"
+  }
+}
+
+fn typ(t: ProcessedType) -> String {
+  case t {
+    BaseType(_) -> panic as "codegenning basetype"
+    CustomType(name) -> name
   }
 }
