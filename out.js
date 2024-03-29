@@ -16,12 +16,12 @@ class Nat {
 
 function foo(x0, x1) {
   x1;
-  return foo(x0, x1);
+  return x0;
 }
 
 function main() {
   foo("a", new Nat().Zero());
-  return console.log(foo("hello world", new Nat().Successor(false)));
+  return console.log(foo("hello world", new Nat().Successor(new Nat().Zero())));
 }
 
 main();

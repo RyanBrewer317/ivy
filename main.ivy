@@ -1,14 +1,14 @@
 def Nat {
   Zero(),
-  Successor(bool)
+  Successor(Nat)
 }
 
 fn foo(s string, n Nat) string {
   n;
-  foo(s, n)
+  s
 }
 
 fn main() {
   foo("a", Zero());
-  println(foo("hello world", Successor(false)))
+  println(foo("hello world", Successor(Zero())))
 }

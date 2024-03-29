@@ -5,18 +5,24 @@ A scripting language written in Gleam!
 Currently a tiny fragment of it works:
 
 ```
-fn foo(s string, i int) string {
-  i;
+def Nat {
+  Zero(),
+  Successor(Nat)
+}
+
+fn foo(s string, n Nat) string {
+  n;
   s
 }
 
 fn main() {
-  foo("a", 3);
-  println(foo("hello world", 7))
+  foo("a", Zero());
+  println(foo("hello world", Successor(Zero())))
 }
 ```
 
-This parses, typechecks, and executes successfully, being compiled to JavaScript.
+This parses, typechecks, and executes successfully, being compiled to JavaScript. 
+I haven't had the chance to add modules or case statements yet.
 
 Ivy will be an immutable language with no garbage collector, using inferred cloning instead. There will be no lambdas (though code will generally be written in a functional style due to immutability) and thus no closures. In addition, there will be Go-like interfaces but no parametric polymorphism, and there will be nonuniform memory layout like C. In-place updates will be inferred for owned values, which is many of them in this often-cloning language. The pervasive datastructure sharing in functional languages won't be possible here. In the long run, datastructures will be automatically flattened into arrays by the compiler and recursive traversals will be compiled to vectorized loops (see the Gibbon compiler). Lastly, owned values will be convertible into buffers that can be used as the memory to allocate new values of the same type; think of this as "deinitializing" and "reinitializing" a value in-place in memory, without compromising immutability.
 
