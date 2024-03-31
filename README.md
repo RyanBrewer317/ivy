@@ -24,10 +24,6 @@ fn times(n Nat, m Nat) Nat {
   }
 }
 
-def Unit {
-  U()
-}
-
 fn nat_to_dots(n Nat) void {
   switch n {
     case Zero(): 
