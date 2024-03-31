@@ -10,12 +10,12 @@ import header.{
   type ParsedExpr, type ParsedParam, type ParsedStmt, type ParsedType, BaseType,
   BoolType, Builtin, Call, Constructor, CustomType, Float, FloatType, Function,
   Global, Int, IntType, Lit, Local, Param, String, StringType, TypeDef, Var,
-  VoidType, Bool
+  VoidType, Bool, Switch
 }
 import party.{
   type ParseError, type Parser, alphanum, char, choice, digits, do, either, end,
   lazy, lowercase_letter, many_concat, not, perhaps, return, satisfy, sep, seq,
-  string, uppercase_letter, whitespace, whitespace1,
+  string, uppercase_letter, whitespace, whitespace1, all
 }
 
 pub fn go(input: String) -> Result(List(ParsedStmt), ParseError(Nil)) {
@@ -203,6 +203,37 @@ fn parenthetical(p: Parser(a, e)) -> Parser(a, e) {
   return(x)
 }
 
+fn switch_expr(defns: Dict(String, Bool)) -> Parser(ParsedExpr, Nil) {
+  use _ <- do(keyword("switch"))
+  use scrutinee <- do(expr(defns))
+  use _ <- do(char("{"))
+  use _ <- do(whitespace())
+  use cases <- do(
+    sep(
+      switch_case(defns),
+      by: all([whitespace(), char(","), whitespace()])
+    )
+  )
+  use _ <- do(whitespace())
+  use _ <- do(char("}"))
+  return(Switch(Nil, scrutinee, cases))
+}
+
+fn switch_case(defns: Dict(String, Bool)) -> Parser(#(String, List(String), List(ParsedExpr)), Nil) {
+  use _ <- do(string("case"))
+  use _ <- do(whitespace1())
+  use pat <- do(constructor_string())
+  use _ <- do(char("("))
+  use _ <- do(whitespace())
+  use vars <- do(sep(ident_string(), by: all([whitespace(), char(","), whitespace()])))
+  use _ <- do(whitespace())
+  use _ <- do(char(")"))
+  use _ <- do(whitespace())
+  use _ <- do(char(":"))
+  use body <- do(sep(expr(defns), by: char(";")))
+  return(#(pat, vars, body))
+}
+
 pub fn expr(defns: Dict(String, Bool)) -> Parser(ParsedExpr, Nil) {
   use _ <- do(whitespace())
   use e <- do(
@@ -211,6 +242,7 @@ pub fn expr(defns: Dict(String, Bool)) -> Parser(ParsedExpr, Nil) {
       num_lit(),
       string_lit(),
       bool(),
+      switch_expr(defns),
       var(defns),
       constructor(defns),
     ]),
@@ -242,7 +274,7 @@ fn base_type() -> Parser(ParsedType, Nil) {
 
 fn custom_type() -> Parser(ParsedType, Nil) {
   use name <- do(constructor_string())
-  return(CustomType(name))
+  return(CustomType(name, []))
 }
 
 pub fn typ() -> Parser(ParsedType, Nil) {

@@ -10,19 +10,46 @@ def Nat {
   Successor(Nat)
 }
 
-fn foo(s string, n Nat) string {
-  n;
-  s
+fn plus(n Nat, m Nat) Nat {
+  switch n {
+    case Zero(): m,
+    case Successor(n_minus_one): Successor(plus(n_minus_one, m))
+  }
+}
+
+fn times(n Nat, m Nat) Nat {
+  switch n {
+    case Zero(): Zero(),
+    case Successor(n_minus_one): plus(times(n_minus_one, m), m)
+  }
+}
+
+def Unit {
+  U()
+}
+
+fn nat_to_dots(n Nat) void {
+  switch n {
+    case Zero(): 
+      println(""),
+    case Successor(m):
+      println(".");
+      nat_to_dots(m)
+  }
 }
 
 fn main() {
-  foo("a", Zero());
-  println(foo("hello world", Successor(Zero())))
+  nat_to_dots(
+    times(
+      Successor(Successor(Successor(Zero()))), 
+      Successor(Successor(Zero()))
+    )
+  )
 }
 ```
 
 This parses, typechecks, and executes successfully, being compiled to JavaScript. 
-I haven't had the chance to add modules or case statements yet.
+I haven't had the chance to add modules yet, and the special memory management and security features are also far from implemented.
 
 Ivy will be an immutable language with no garbage collector, using inferred cloning instead. There will be no lambdas (though code will generally be written in a functional style due to immutability) and thus no closures. In addition, there will be Go-like interfaces but no parametric polymorphism, and there will be nonuniform memory layout like C. In-place updates will be inferred for owned values, which is many of them in this often-cloning language. The pervasive datastructure sharing in functional languages won't be possible here. In the long run, datastructures will be automatically flattened into arrays by the compiler and recursive traversals will be compiled to vectorized loops (see the Gibbon compiler). Lastly, owned values will be convertible into buffers that can be used as the memory to allocate new values of the same type; think of this as "deinitializing" and "reinitializing" a value in-place in memory, without compromising immutability.
 

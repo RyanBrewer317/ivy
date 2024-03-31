@@ -9,7 +9,7 @@ import gleam/float
 import header.{
   type ProcessedExpr, type ProcessedParam, type ProcessedStmt,
   type ProcessedType, BaseType, Bool, Builtin, Call, Constructor, CustomType,
-  Float, Function, Global, Int, Lit, Local, String, TypeDef, Var,
+  Float, Function, Global, Int, Lit, Local, String, TypeDef, Var, Switch,
 }
 
 pub fn go(prog: List(ProcessedStmt)) -> String {
@@ -96,12 +96,36 @@ fn expr(e: ProcessedExpr) -> String {
       <> "("
       <> string.join(list.map(args, expr), ", ")
       <> ")"
+    Switch(_t, e, cases) -> {
+      let scrutinee = expr(e)
+      let assert CustomType(_, variants) = e.t
+      let case_strs = list.map(cases, fn(triple) {
+        let #(constructor_name, vars, body) = triple
+        let tag = list.fold_until(over: variants, from: 0, with: fn(i, variant) {
+          let #(name, _) = variant
+          case constructor_name == name {
+            True -> list.Stop(i)
+            False -> list.Continue(i + 1)
+          }
+        })
+        let assert [last_line, ..rest_rev] = list.reverse(body)
+        let rest = list.reverse(rest_rev)
+        "case " <> int.to_string(tag) <> ": {\n"
+        <> string.join(list.index_map(vars, fn(x, i) { "let x" <> int.to_string(x) <> " = " <> scrutinee <> ".x" <> int.to_string(i) <> ";"}), "\n")
+        <> "\n    "
+        <> string.join(list.map(rest, expr), "\n    ")
+        <> ";\n    return "
+        <> expr(last_line)
+        <> ";\n  }"
+      })
+      "(()=>{switch(" <> scrutinee <> ".tag) {\n    " <> string.join(case_strs, "\n    ") <> "\n  }})()"
+    }
   }
 }
 
 fn typ(t: ProcessedType) -> String {
   case t {
     BaseType(_) -> panic as "codegenning basetype"
-    CustomType(name) -> name
+    CustomType(name, _) -> name
   }
 }

@@ -3,12 +3,35 @@ def Nat {
   Successor(Nat)
 }
 
-fn foo(s string, n Nat) string {
-  n;
-  s
+fn plus(n Nat, m Nat) Nat {
+  switch n {
+    case Zero(): m,
+    case Successor(n_minus_one): Successor(plus(n_minus_one, m))
+  }
+}
+
+fn times(n Nat, m Nat) Nat {
+  switch n {
+    case Zero(): Zero(),
+    case Successor(n_minus_one): plus(times(n_minus_one, m), m)
+  }
+}
+
+fn nat_to_dots(n Nat) void {
+  switch n {
+    case Zero(): 
+      println(""),
+    case Successor(m):
+      println(".");
+      nat_to_dots(m)
+  }
 }
 
 fn main() {
-  foo("a", Zero());
-  println(foo("hello world", Successor(Zero())))
+  nat_to_dots(
+    times(
+      Successor(Successor(Successor(Zero()))), 
+      Successor(Successor(Zero()))
+    )
+  )
 }

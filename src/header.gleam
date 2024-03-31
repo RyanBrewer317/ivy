@@ -107,6 +107,9 @@ pub type Expr(t, name) {
   Call(t: t, Ident(name), List(Expr(t, name)))
   Builtin(t: t, String, List(Expr(t, name)))
   Constructor(t: t, String, List(Expr(t, name)))
+  Switch(t: t, Expr(t, name), List(
+    #(String, List(name), List(Expr(t, name))),
+  ))
 }
 
 pub type ParsedExpr =
@@ -131,6 +134,24 @@ pub fn pretty_parsed_expr(expr: ParsedExpr) -> String {
       <> "("
       <> string.join(list.map(args, pretty_parsed_expr), ", ")
       <> ")"
+    Switch(_, expr, cases) ->
+      "switch "
+      <> pretty_parsed_expr(expr)
+      <> " {\n    "
+      <> string.join(
+        list.map(cases, fn(pair) {
+          let #(ctor, vars, body) = pair
+          "case "
+          <> ctor
+          <> "("
+          <> string.join(vars, ", ")
+          <> ")"
+          <> ": "
+          <> string.join(list.map(body, pretty_parsed_expr), "\n")
+        }),
+        ",\n    ",
+      )
+      <> "\n  }"
   }
 }
 
@@ -156,6 +177,24 @@ pub fn pretty_processed_expr(expr: ProcessedExpr) -> String {
       <> "("
       <> string.join(list.map(args, pretty_processed_expr), ", ")
       <> ")"
+    Switch(_, expr, cases) ->
+      "switch "
+      <> pretty_processed_expr(expr)
+      <> " {\n    "
+      <> string.join(
+        list.map(cases, fn(pair) {
+          let #(ctor, vars, body) = pair
+          "case "
+          <> ctor
+          <> "("
+          <> string.join(list.map(vars, fn(x) {"x" <> int.to_string(x)}), ", ")
+          <> ")"
+          <> ": "
+          <> string.join(list.map(body, pretty_processed_expr), "\n")
+        }),
+        ",\n    ",
+      )
+      <> "\n  }"
   }
 }
 
@@ -225,7 +264,7 @@ pub fn pretty_base_type(t: BaseType) -> String {
 
 pub type Type(name) {
   BaseType(BaseType)
-  CustomType(String)
+  CustomType(String, List(#(String, List(Type(name)))))
 }
 
 pub type ParsedType =
@@ -235,7 +274,7 @@ pub fn pretty_parsed_type(t: ParsedType) -> String {
   case t {
     // TypeVar(ident) -> pretty_parsed_ident(ident)
     BaseType(base_type) -> pretty_base_type(base_type)
-    CustomType(name) -> name
+    CustomType(name, _) -> name
   }
 }
 
@@ -245,6 +284,14 @@ pub type ProcessedType =
 pub fn pretty_processed_type(t: ProcessedType) -> String {
   case t {
     BaseType(base_type) -> pretty_base_type(base_type)
-    CustomType(name) -> name
+    CustomType(name, _) -> name
+  }
+}
+
+pub fn type_eq(a: ProcessedType, b: ProcessedType) -> Bool {
+  case a, b {
+    BaseType(at), BaseType(bt) -> at == bt
+    CustomType(an, _), CustomType(bn, _) -> an == bn
+    _, _ -> False
   }
 }
