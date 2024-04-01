@@ -107,9 +107,7 @@ pub type Expr(t, name) {
   Call(t: t, Ident(name), List(Expr(t, name)))
   Builtin(t: t, String, List(Expr(t, name)))
   Constructor(t: t, String, List(Expr(t, name)))
-  Switch(t: t, Expr(t, name), List(
-    #(String, List(name), List(Expr(t, name))),
-  ))
+  Switch(t: t, Expr(t, name), List(#(String, List(name), List(Expr(t, name)))))
 }
 
 pub type ParsedExpr =
@@ -187,7 +185,10 @@ pub fn pretty_processed_expr(expr: ProcessedExpr) -> String {
           "case "
           <> ctor
           <> "("
-          <> string.join(list.map(vars, fn(x) {"x" <> int.to_string(x)}), ", ")
+          <> string.join(
+            list.map(vars, fn(x) { "x" <> int.to_string(x) }),
+            ", ",
+          )
           <> ")"
           <> ": "
           <> string.join(list.map(body, pretty_processed_expr), "\n")

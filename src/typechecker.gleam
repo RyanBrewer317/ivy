@@ -12,8 +12,8 @@ import header.{
   type ParsedExpr, type ParsedStmt, type ParsedType, type ProcessedExpr,
   type ProcessedIdent, type ProcessedStmt, type ProcessedType, BaseType, Bool,
   BoolType, Builtin, Call, Constructor, CustomType, Float, FloatType, Function,
-  Global, Int, IntType, Lit, Local, Param, String, StringType, TypeDef, Var,
-  VoidType, get_parsed_ident_name, pretty_processed_type, Switch, type_eq
+  Global, Int, IntType, Lit, Local, Param, String, StringType, Switch, TypeDef,
+  Var, VoidType, get_parsed_ident_name, pretty_processed_type, type_eq,
 }
 
 type ContextEntry {
@@ -49,10 +49,11 @@ pub fn go(prog: List(ParsedStmt)) -> Result(List(ProcessedStmt)) {
           ),
         ))
       TypeDef(name, variants) -> {
-        let ctx2 = list.fold(variants, ctx, fn(acc, variant) {
-          let #(ctor, types) = variant
-          dict.insert(acc, ctor, ConstructorEntry(Global(ctor), name, types))
-        })
+        let ctx2 =
+          list.fold(variants, ctx, fn(acc, variant) {
+            let #(ctor, types) = variant
+            dict.insert(acc, ctor, ConstructorEntry(Global(ctor), name, types))
+          })
         Ok(#(
           [res, ..stmts],
           i,
@@ -131,7 +132,8 @@ fn expr(e: ParsedExpr, i: Int, ctx: Context) -> Result(#(ProcessedExpr, Int)) {
         Ok(VarEntry(ident, t)) -> Ok(#(Var(t, ident), i))
         Ok(FuncEntry(_, _, _)) -> panic as "variable refers to function name"
         Ok(TypeEntry(_, _)) -> panic as "variable refers to type name"
-        Ok(ConstructorEntry(_, _, _)) -> panic as "variable refers to constructor"
+        Ok(ConstructorEntry(_, _, _)) ->
+          panic as "variable refers to constructor"
         Error(Nil) -> snag.error("undefined variable `" <> name <> "`")
       }
     Var(Nil, Global(_name)) -> panic as "parser produced a global var"
@@ -251,7 +253,8 @@ fn expr(e: ParsedExpr, i: Int, ctx: Context) -> Result(#(ProcessedExpr, Int)) {
               },
             ),
           )
-          Ok(#(Constructor(CustomType(t_name, []), name, args), i)) // TODO: [] should be the variants of the custom type
+          Ok(#(Constructor(CustomType(t_name, []), name, args), i))
+          // TODO: [] should be the variants of the custom type
         }
         Ok(_) -> panic as "constructor name doesn't refer to a constructor"
         Error(Nil) -> snag.error("undefined constructor `" <> name <> "`")
@@ -261,48 +264,95 @@ fn expr(e: ParsedExpr, i: Int, ctx: Context) -> Result(#(ProcessedExpr, Int)) {
       use #(scrutinee, i) <- result.try(expr(scrutinee, i, ctx))
       case scrutinee.t {
         CustomType(t_name, _) -> {
-          use entry <- result.try(result.map_error(dict.get(ctx, t_name), fn(_) {snag.new("type not found")}))
+          use entry <- result.try(
+            result.map_error(dict.get(ctx, t_name), fn(_) {
+              snag.new("type not found")
+            }),
+          )
           use variants <- result.try(case entry {
             TypeEntry(_, variants) -> Ok(variants)
             _ -> panic as "custom type has a name that refers to a non-type"
           })
-          use <- bool.guard(when: list.length(variants) != list.length(cases), return: snag.error("number of cases must match number of variants"))
-          use #(_, i, cases_rev, mb_t) <- result.try(list.try_fold(over: cases, from: #(set.new(), i, [], Error(Nil)), with: fn(state, c) {
-            let #(seen_so_far, i, cases_rev, rett) = state
-            let #(name, vars, body) = c
-            use <- bool.guard(when: set.contains(seen_so_far, name), return: snag.error("duplicate case"))
-            use variant <- result.try(result.map_error(with: fn(_) {snag.new("case for variant not in type")}, over: list.find(variants, fn(variant) {
-              let #(v_name, _) = variant
-              name == v_name
-            })))
-            let #(_, types) = variant
-            use <- bool.guard(list.length(vars) != list.length(types), return: snag.error("constructor pattern with incorrect number of parameters"))
-            let #(vars_rev, i) = list.fold(vars, #([], i), fn(state, var) {
-              let #(vars_rev, i) = state
-              #([#(var, i), ..vars_rev], i + 1)
-            })
-            let vars = list.reverse(vars_rev)
-            let ctx2 = list.fold(list.zip(vars, types), ctx, fn(c, pair) {
-              let #(#(var_str, var_i), t) = pair
-              dict.insert(c, var_str, VarEntry(Local(var_i), t))
-            })
-            let vars = list.map(vars, fn(var) { var.1})
-            use #(body_rev, i, _ctx) <- result.try(list.try_fold(over: body, from: #([], i, ctx2), with: fn(state, line) {
-              let #(body_rev, i, ctx) = state
-              use #(line, i) <- result.try(expr(line, i, ctx))
-              Ok(#([line, ..body_rev], i, ctx))
-            }))
-            let body = list.reverse(body_rev)
-            let assert [last_line, ..] = body_rev
-            case rett {
-              Error(Nil) -> Ok(#(set.insert(seen_so_far, name), i, [#(name, vars, body), ..cases_rev], Ok(last_line.t)))
-              Ok(t) -> 
-                case type_eq(t, last_line.t) {
-                  True -> Ok(#(set.insert(seen_so_far, name), i, [#(name, vars, body), ..cases_rev], rett))
-                  False -> snag.error("case body doesn't return the same type as earlier cases")
+          use <- bool.guard(
+            when: list.length(variants) != list.length(cases),
+            return: snag.error("number of cases must match number of variants"),
+          )
+          use #(_, i, cases_rev, mb_t) <- result.try(
+            list.try_fold(
+              over: cases,
+              from: #(set.new(), i, [], Error(Nil)),
+              with: fn(state, c) {
+                let #(seen_so_far, i, cases_rev, rett) = state
+                let #(name, vars, body) = c
+                use <- bool.guard(
+                  when: set.contains(seen_so_far, name),
+                  return: snag.error("duplicate case"),
+                )
+                use variant <- result.try(result.map_error(
+                  with: fn(_) { snag.new("case for variant not in type") },
+                  over: list.find(variants, fn(variant) {
+                    let #(v_name, _) = variant
+                    name == v_name
+                  }),
+                ))
+                let #(_, types) = variant
+                use <- bool.guard(
+                  list.length(vars) != list.length(types),
+                  return: snag.error(
+                    "constructor pattern with incorrect number of parameters",
+                  ),
+                )
+                let #(vars_rev, i) =
+                  list.fold(vars, #([], i), fn(state, var) {
+                    let #(vars_rev, i) = state
+                    #([#(var, i), ..vars_rev], i + 1)
+                  })
+                let vars = list.reverse(vars_rev)
+                let ctx2 =
+                  list.fold(list.zip(vars, types), ctx, fn(c, pair) {
+                    let #(#(var_str, var_i), t) = pair
+                    dict.insert(c, var_str, VarEntry(Local(var_i), t))
+                  })
+                let vars = list.map(vars, fn(var) { var.1 })
+                use #(body_rev, i, _ctx) <- result.try(
+                  list.try_fold(
+                    over: body,
+                    from: #([], i, ctx2),
+                    with: fn(state, line) {
+                      let #(body_rev, i, ctx) = state
+                      use #(line, i) <- result.try(expr(line, i, ctx))
+                      Ok(#([line, ..body_rev], i, ctx))
+                    },
+                  ),
+                )
+                let body = list.reverse(body_rev)
+                let assert [last_line, ..] = body_rev
+                case rett {
+                  Error(Nil) ->
+                    Ok(#(
+                      set.insert(seen_so_far, name),
+                      i,
+                      [#(name, vars, body), ..cases_rev],
+                      Ok(last_line.t),
+                    ))
+                  Ok(t) ->
+                    case type_eq(t, last_line.t) {
+                      True ->
+                        Ok(#(
+                          set.insert(seen_so_far, name),
+                          i,
+                          [#(name, vars, body), ..cases_rev],
+                          rett,
+                        ))
+                      False ->
+                        snag.error(
+                          "case body doesn't return the same type as earlier cases",
+                        )
+                    }
                 }
-            }
-          }))
+              },
+            ),
+          )
           let cases = list.reverse(cases_rev)
           let t = case mb_t {
             Ok(t) -> t
@@ -319,10 +369,9 @@ fn expr(e: ParsedExpr, i: Int, ctx: Context) -> Result(#(ProcessedExpr, Int)) {
 fn typ(t: ParsedType, ctx: Context) -> ProcessedType {
   case t {
     BaseType(ty) -> BaseType(ty)
-    CustomType(name, _) -> 
+    CustomType(name, _) ->
       case dict.get(ctx, name) {
-        Ok(TypeEntry(_, variants)) -> 
-          CustomType(name, variants)
+        Ok(TypeEntry(_, variants)) -> CustomType(name, variants)
         Ok(_) -> panic
         Error(Nil) -> CustomType(name, [])
       }

@@ -8,14 +8,14 @@ import gleam/dict.{type Dict}
 import gleam/list
 import header.{
   type ParsedExpr, type ParsedParam, type ParsedStmt, type ParsedType, BaseType,
-  BoolType, Builtin, Call, Constructor, CustomType, Float, FloatType, Function,
-  Global, Int, IntType, Lit, Local, Param, String, StringType, TypeDef, Var,
-  VoidType, Bool, Switch
+  Bool, BoolType, Builtin, Call, Constructor, CustomType, Float, FloatType,
+  Function, Global, Int, IntType, Lit, Local, Param, String, StringType, Switch,
+  TypeDef, Var, VoidType,
 }
 import party.{
-  type ParseError, type Parser, alphanum, char, choice, digits, do, either, end,
-  lazy, lowercase_letter, many_concat, not, perhaps, return, satisfy, sep, seq,
-  string, uppercase_letter, whitespace, whitespace1, all
+  type ParseError, type Parser, all, alphanum, char, choice, digits, do, either,
+  end, lazy, lowercase_letter, many_concat, not, perhaps, return, satisfy, sep,
+  seq, string, uppercase_letter, whitespace, whitespace1,
 }
 
 pub fn go(input: String) -> Result(List(ParsedStmt), ParseError(Nil)) {
@@ -136,7 +136,7 @@ fn bool() -> Parser(ParsedExpr, Nil) {
     case s {
       "true" -> Lit(Nil, Bool(True))
       "false" -> Lit(Nil, Bool(False))
-      _ -> panic 
+      _ -> panic
     }
   })
 }
@@ -208,24 +208,27 @@ fn switch_expr(defns: Dict(String, Bool)) -> Parser(ParsedExpr, Nil) {
   use scrutinee <- do(expr(defns))
   use _ <- do(char("{"))
   use _ <- do(whitespace())
-  use cases <- do(
-    sep(
-      switch_case(defns),
-      by: all([whitespace(), char(","), whitespace()])
-    )
-  )
+  use cases <- do(sep(
+    switch_case(defns),
+    by: all([whitespace(), char(","), whitespace()]),
+  ))
   use _ <- do(whitespace())
   use _ <- do(char("}"))
   return(Switch(Nil, scrutinee, cases))
 }
 
-fn switch_case(defns: Dict(String, Bool)) -> Parser(#(String, List(String), List(ParsedExpr)), Nil) {
+fn switch_case(
+  defns: Dict(String, Bool),
+) -> Parser(#(String, List(String), List(ParsedExpr)), Nil) {
   use _ <- do(string("case"))
   use _ <- do(whitespace1())
   use pat <- do(constructor_string())
   use _ <- do(char("("))
   use _ <- do(whitespace())
-  use vars <- do(sep(ident_string(), by: all([whitespace(), char(","), whitespace()])))
+  use vars <- do(sep(
+    ident_string(),
+    by: all([whitespace(), char(","), whitespace()]),
+  ))
   use _ <- do(whitespace())
   use _ <- do(char(")"))
   use _ <- do(whitespace())
